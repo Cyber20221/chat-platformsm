@@ -6,6 +6,12 @@ import {
   push,
   onChildAdded
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 // Your Firebase Config
 const firebaseConfig = {
@@ -21,33 +27,53 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const storage = getStorage(app);
 
 const chatBox = document.getElementById("chat");
 const msgInput = document.getElementById("message");
+const fileInput = document.getElementById("fileInput");
 
-// Listen for messages
 function listenForMessages() {
   const messagesRef = ref(db, "messages");
   onChildAdded(messagesRef, (data) => {
     const msgData = data.val();
     const p = document.createElement("p");
     p.className = "msg";
-    p.innerHTML = `<strong>${msgData.user}:</strong> ${msgData.message}`;
+    if (msgData.fileUrl) {
+      p.innerHTML = `<strong>${msgData.user}:</strong> <a href="${msgData.fileUrl}" target="_blank">Download Attachment</a>`;
+    } else {
+      p.innerHTML = `<strong>${msgData.user}:</strong> ${msgData.message}`;
+    }
     chatBox.appendChild(p);
     chatBox.scrollTop = chatBox.scrollHeight;
   });
 }
 
-// Send message
 window.sendMessage = function () {
   const msg = msgInput.value.trim();
   if (msg !== "") {
     push(ref(db, "messages"), {
-      user: "Anonymous",
+      user: window.getUsername ? window.getUsername() : "Anonymous",
       message: msg
     });
     msgInput.value = "";
   }
 };
 
+window.sendFile = function () {
+  const file = fileInput.files[0];
+  if (file) {
+    const storageReference = storageRef(storage, `chat-attachments/${file.name}`);
+    uploadBytes(storageReference, file).then((snapshot) => {
+      getDownloadURL(snapshot.ref).then((fileUrl) => {
+        push(ref(db, "messages"), {
+          user: window.getUsername ? window.getUsername() : "Anonymous",
+          fileUrl: fileUrl
+        });
+      });
+    });
+  }
+};
+
 listenForMessages();
+
